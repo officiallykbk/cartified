@@ -1,7 +1,18 @@
 {
   "abi":[
     {
-      "inputs": [],
+      "inputs": [
+        {
+          "internalType": "string",
+          "name": "baseURI",
+          "type": "string"
+        },
+        {
+          "internalType": "address",
+          "name": "_platformWallet",
+          "type": "address"
+        }
+      ],
       "stateMutability": "nonpayable",
       "type": "constructor"
     },
@@ -110,19 +121,6 @@
     {
       "inputs": [
         {
-          "internalType": "string",
-          "name": "ipfsURI",
-          "type": "string"
-        }
-      ],
-      "name": "mintOrder",
-      "outputs": [],
-      "stateMutability": "nonpayable",
-      "type": "function"
-    },
-    {
-      "inputs": [
-        {
           "internalType": "address",
           "name": "owner",
           "type": "address"
@@ -175,6 +173,19 @@
           "type": "uint256"
         }
       ],
+      "name": "burnOrder",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "tokenId",
+          "type": "uint256"
+        }
+      ],
       "name": "confirmDelivery",
       "outputs": [],
       "stateMutability": "nonpayable",
@@ -185,12 +196,6 @@
       "inputs": [
         {
           "indexed": true,
-          "internalType": "address",
-          "name": "from",
-          "type": "address"
-        },
-        {
-          "indexed": false,
           "internalType": "uint256",
           "name": "tokenId",
           "type": "uint256"
@@ -218,23 +223,23 @@
         {
           "indexed": true,
           "internalType": "address",
-          "name": "to",
+          "name": "buyer",
           "type": "address"
         },
         {
-          "indexed": false,
+          "indexed": true,
           "internalType": "uint256",
           "name": "tokenId",
           "type": "uint256"
         },
         {
           "indexed": false,
-          "internalType": "string",
-          "name": "ipfsURI",
-          "type": "string"
+          "internalType": "uint256",
+          "name": "amount",
+          "type": "uint256"
         }
       ],
-      "name": "OrderMinted",
+      "name": "OrderPlaced",
       "type": "event"
     },
     {
@@ -255,6 +260,38 @@
       ],
       "name": "OwnershipTransferred",
       "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "to",
+          "type": "address"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "amount",
+          "type": "uint256"
+        }
+      ],
+      "name": "PaymentReleased",
+      "type": "event"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "string",
+          "name": "tokenURI",
+          "type": "string"
+        }
+      ],
+      "name": "placeOrder",
+      "outputs": [],
+      "stateMutability": "payable",
+      "type": "function"
     },
     {
       "inputs": [],
@@ -502,19 +539,6 @@
       "type": "function"
     },
     {
-      "inputs": [],
-      "name": "currentTokenId",
-      "outputs": [
-        {
-          "internalType": "uint256",
-          "name": "",
-          "type": "uint256"
-        }
-      ],
-      "stateMutability": "view",
-      "type": "function"
-    },
-    {
       "inputs": [
         {
           "internalType": "uint256",
@@ -522,12 +546,34 @@
           "type": "uint256"
         }
       ],
-      "name": "getOrderStatus",
+      "name": "getOrderDetails",
       "outputs": [
         {
-          "internalType": "bool",
+          "components": [
+            {
+              "internalType": "address",
+              "name": "buyer",
+              "type": "address"
+            },
+            {
+              "internalType": "uint256",
+              "name": "amount",
+              "type": "uint256"
+            },
+            {
+              "internalType": "bool",
+              "name": "isDelivered",
+              "type": "bool"
+            },
+            {
+              "internalType": "bool",
+              "name": "isBurned",
+              "type": "bool"
+            }
+          ],
+          "internalType": "struct Cartified1155.Order",
           "name": "",
-          "type": "bool"
+          "type": "tuple"
         }
       ],
       "stateMutability": "view",
@@ -568,13 +614,23 @@
       "name": "orders",
       "outputs": [
         {
-          "internalType": "string",
-          "name": "ipfsURI",
-          "type": "string"
+          "internalType": "address",
+          "name": "buyer",
+          "type": "address"
+        },
+        {
+          "internalType": "uint256",
+          "name": "amount",
+          "type": "uint256"
         },
         {
           "internalType": "bool",
-          "name": "delivered",
+          "name": "isDelivered",
+          "type": "bool"
+        },
+        {
+          "internalType": "bool",
+          "name": "isBurned",
           "type": "bool"
         }
       ],
@@ -584,6 +640,19 @@
     {
       "inputs": [],
       "name": "owner",
+      "outputs": [
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "platformWallet",
       "outputs": [
         {
           "internalType": "address",

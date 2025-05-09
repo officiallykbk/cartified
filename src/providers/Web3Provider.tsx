@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { WalletContext } from '../contexts/WalletContext';
 import { WalletStatus, WalletInfo } from '../types';
 import { ethers } from 'ethers';
-
+import { toast } from 'react-hot-toast';
 interface Web3ProviderProps {
   children: React.ReactNode;
 }
@@ -16,6 +16,7 @@ const Web3Provider: React.FC<Web3ProviderProps> = ({ children }) => {
   const connect = async () => {
     try {
       if (!window.ethereum) {
+        toast.error('MetaMask is not installed');
         throw new Error('MetaMask is not installed');
       }
 
@@ -39,6 +40,7 @@ const Web3Provider: React.FC<Web3ProviderProps> = ({ children }) => {
       setStatus('connected');
     } catch (error) {
       console.error('Error connecting wallet:', error);
+      toast.error('Wallet connection failed');
       setStatus('disconnected');
       throw error;
     }
@@ -54,6 +56,7 @@ const Web3Provider: React.FC<Web3ProviderProps> = ({ children }) => {
   const switchNetwork = async (newChainId: number) => {
     try {
       if (!window.ethereum) {
+        toast.error('MetaMask is not installed');
         throw new Error('MetaMask is not installed');
       }
 

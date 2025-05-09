@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, Trash2, ShoppingBag, CreditCard, ArrowRight } from 'lucide-react';
+import { X, Trash2, ShoppingBag, ArrowRight } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useCart } from '../hooks/useCart';
 import { useWallet } from '../hooks/useWallet';
@@ -9,32 +9,38 @@ import { getSigner } from '../utils/getSigner';
 import QRCode from 'qrcode.react';
 import toast from 'react-hot-toast';
 
+const BLOCK_EXPLORER_URL = import.meta.env.VITE_BLOCK_EXPLORER_URL;
+
 interface CartProps {
   onClose: () => void;
 }
 
 const Cart: React.FC<CartProps> = ({ onClose }) => {
   const { cartItems, removeFromCart, updateQuantity, clearCart } = useCart();
-  const { isConnected, connect, provider } = useWallet();
+  const { isConnected, connect } = useWallet();
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('eth');
   const [checkoutStep, setCheckoutStep] = useState<'cart' | 'payment' | 'confirm' | 'success'>('cart');
   const [qrData, setQrData] = useState<string | null>(null);
   const [showQR, setShowQR] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [processingStep, setProcessingStep] = useState('');
+  const [tokenId, setTokenId] = useState<string | null>(null);
 
   const totalPrice = cartItems.reduce(
     (sum, item) => sum + item.price * item.quantity,
     0
   );
 
+  // Calculate ETH price (using current price or a fixed rate)
+  const ethPrice = (totalPrice / 3000).toFixed(6);
+
   const handleCheckout = async () => {
-    if (isProcessing) return; // Prevent multiple clicks
-    
     try {
       setIsProcessing(true);
       
       // Handle wallet connection if not connected
       if (!isConnected) {
+        setProcessingStep('Connecting wallet...');
         await connect();
         // Wait for connection to be established
         await new Promise(resolve => setTimeout(resolve, 1000));
@@ -57,35 +63,51 @@ const Cart: React.FC<CartProps> = ({ onClose }) => {
       // Handle final checkout in confirmation step
       if (checkoutStep === 'confirm') {
         // Prepare order data for IPFS
+        setProcessingStep('Preparing order data...');
         const orderData = {
           items: cartItems,
           totalPrice,
           timestamp: new Date().toISOString(),
-          paymentMethod
+          paymentMethod,
+          ethPrice
         };
 
         // Get signer using utility function
+        setProcessingStep('Connecting to wallet...');
         const signer = await getSigner();
         
-        // Upload to IPFS and mint NFT using utility function
-        const { ipfsURI, qrData } = await uploadJSONToIPFS(orderData, signer);
+        // Upload to IPFS and place order
+        setProcessingStep('Uploading to IPFS...');
+        const { txHash, tokenId } = await uploadJSONToIPFS(
+          orderData,
+          signer,
+          ethPrice
+        );
         
-        // Show QR code
-        setQrData(qrData);
+        setTokenId(tokenId);
+        setQrData(txHash);
         setShowQR(true);
         
-        // Clear cart after successful minting
+        // Clear cart after successful order placement
         clearCart();
         
         // Move to success step
         setCheckoutStep('success');
-        toast.success('Order processed successfully!');
+        toast.success('Order placed successfully!');
       }
     } catch (error) {
       console.error('Checkout error:', error);
-      toast.error(error instanceof Error ? error.message : 'Failed to process order');
+      let errorMessage = 'Failed to process order';
+      if (error instanceof Error) {
+        errorMessage = error.message;
+        if (error.message.includes('401')) {
+          errorMessage = 'Authentication failed - check your Pinata credentials';
+        }
+      }
+      toast.error(errorMessage);
     } finally {
       setIsProcessing(false);
+      setProcessingStep('');
     }
   };
 
@@ -110,7 +132,7 @@ const Cart: React.FC<CartProps> = ({ onClose }) => {
             <ShoppingBag className="mr-2 h-5 w-5" />
             {checkoutStep === 'cart' ? 'Your Cart' : 
              checkoutStep === 'payment' ? 'Payment Method' : 
-             checkoutStep === 'confirm' ? 'Confirm Order' : 'Purchase Complete'}
+             checkoutStep === 'confirm' ? 'Confirm Order' : 'Order Complete'}
           </h2>
           <button
             onClick={onClose}
@@ -119,6 +141,18 @@ const Cart: React.FC<CartProps> = ({ onClose }) => {
             <X className="h-5 w-5" />
           </button>
         </div>
+
+        {isProcessing && (
+          <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center">
+            <div className="bg-white dark:bg-gray-900 p-6 rounded-lg shadow-xl max-w-sm w-full mx-4">
+              <div className="flex flex-col items-center">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mb-4"></div>
+                <h3 className="text-lg font-medium mb-2">Processing Your Order</h3>
+                <p className="text-gray-600 dark:text-gray-400 text-center">{processingStep}</p>
+              </div>
+            </div>
+          </div>
+        )}
 
         {checkoutStep === 'cart' && (
           <>
@@ -223,7 +257,7 @@ const Cart: React.FC<CartProps> = ({ onClose }) => {
                   />
                   <span className="font-medium">Ethereum</span>
                   <div className="ml-6 text-sm text-gray-500 dark:text-gray-400">
-                    {(totalPrice / 3000).toFixed(6)} ETH
+                    {ethPrice} ETH
                   </div>
                 </label>
                 
@@ -238,20 +272,6 @@ const Cart: React.FC<CartProps> = ({ onClose }) => {
                   <span className="font-medium">USDC</span>
                   <div className="ml-6 text-sm text-gray-500 dark:text-gray-400">
                     {totalPrice.toFixed(2)} USDC
-                  </div>
-                </label>
-                
-                <label className="block">
-                  <input
-                    type="radio"
-                    name="payment"
-                    checked={paymentMethod === 'fiat'}
-                    onChange={() => setPaymentMethod('fiat')}
-                    className="mr-2"
-                  />
-                  <span className="font-medium">Credit/Debit Card</span>
-                  <div className="ml-6 text-sm text-gray-500 dark:text-gray-400">
-                    Standard fiat payment
                   </div>
                 </label>
               </div>
@@ -294,16 +314,13 @@ const Cart: React.FC<CartProps> = ({ onClose }) => {
                 <div className="flex justify-between mb-2">
                   <span>Payment Method</span>
                   <span className="font-medium">
-                    {paymentMethod === 'eth' ? 'Ethereum' : 
-                     paymentMethod === 'usdc' ? 'USDC' : 'Credit/Debit Card'}
+                    {paymentMethod === 'eth' ? 'Ethereum' : 'USDC'}
                   </span>
                 </div>
                 <div className="flex justify-between font-medium">
                   <span>Total</span>
                   <span>
-                    {paymentMethod === 'eth' ? `${(totalPrice / 3000).toFixed(6)} ETH` : 
-                     paymentMethod === 'usdc' ? `${totalPrice.toFixed(2)} USDC` : 
-                     `$${totalPrice.toFixed(2)}`}
+                    {paymentMethod === 'eth' ? `${ethPrice} ETH` : `${totalPrice.toFixed(2)} USDC`}
                   </span>
                 </div>
               </div>
@@ -321,10 +338,14 @@ const Cart: React.FC<CartProps> = ({ onClose }) => {
             <div className="p-4 border-t dark:border-gray-800">
               <button
                 onClick={handleCheckout}
-                className="w-full py-3 bg-blue-500 hover:bg-blue-600 text-white rounded-lg font-medium transition-colors flex items-center justify-center"
+                disabled={isProcessing}
+                className={`w-full py-3 rounded-lg font-medium transition-colors ${
+                  isProcessing
+                    ? 'bg-gray-400 cursor-not-allowed'
+                    : 'bg-blue-500 hover:bg-blue-600 text-white'
+                }`}
               >
-                <CreditCard className="mr-2 h-4 w-4" />
-                Confirm and Pay
+                {isProcessing ? 'Processing...' : 'Confirm Order'}
               </button>
               <button
                 onClick={() => setCheckoutStep('payment')}
@@ -340,27 +361,32 @@ const Cart: React.FC<CartProps> = ({ onClose }) => {
           <>
             <div className="flex-1 overflow-auto p-4">
               <div className="bg-green-50 dark:bg-green-900/20 p-4 rounded-lg border border-green-200 dark:border-green-900 mb-6">
-                <h3 className="font-medium text-green-800 dark:text-green-300 mb-1">Purchase Successful!</h3>
+                <h3 className="font-medium text-green-800 dark:text-green-300 mb-1">Order Placed Successfully!</h3>
                 <p className="text-sm text-green-600 dark:text-green-400">
-                  Your purchase has been recorded on the blockchain and an NFT has been generated for verification.
+                  Your order has been recorded on the blockchain and an NFT has been minted for verification.
                 </p>
               </div>
 
               {showQR && qrData && (
                 <div className="text-center mb-6">
                   <QRCode value={qrData} size={200} className="mx-auto mb-4" />
+                  <a href={`${BLOCK_EXPLORER_URL}${qrData}`} target="_blank" rel="noopener noreferrer">
                   <p className="text-sm text-gray-500 dark:text-gray-400">
-                    Scan this QR code to verify your purchase
+                    Transaction Hash: {qrData}
                   </p>
+                  </a>
                 </div>
               )}
 
-              <div className="bg-gray-50 dark:bg-gray-800 p-4 rounded-lg">
-                <h4 className="font-medium mb-2">NFT Details</h4>
-                <p className="text-sm text-gray-600 dark:text-gray-300 break-all">
-                  IPFS URL: {qrData}
-                </p>
-              </div>
+              {tokenId && (
+                <div className="bg-gray-50 dark:bg-gray-800 p-4 rounded-lg">
+                  <h4 className="font-medium mb-2">Order Details</h4>
+                  <div className="text-sm text-gray-600 dark:text-gray-300">
+                    <p>Token ID: {tokenId}</p>
+                    <p>Amount Paid: {ethPrice} ETH</p>
+                  </div>
+                </div>
+              )}
             </div>
 
             <div className="p-4 border-t dark:border-gray-800">

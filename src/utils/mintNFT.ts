@@ -1,54 +1,66 @@
 import { ethers } from 'ethers';
 import { toast } from 'react-hot-toast';
-import deliveryABI from '../contracts/delivery.json';
+import Cartified1155ABI from '../contracts/delivery.json';
 
-// Update with your deployed contract address on Sonic Blaze testnet
-const CONTRACT_ADDRESS = '0xB524a7d13A835aDb68c3C41de7a9609A2208a1C7'; // Replace with actual deployed contract address
-const BLOCK_EXPLORER_URL = 'https://testnet.sonicscan.org/tx/'; // Sonic Blaze testnet explorer
+const CONTRACT_ADDRESS: string = import.meta.env.VITE_CONTRACT_ADDRESS || '';
+const BLOCK_EXPLORER_URL: string = import.meta.env.VITE_BLOCK_EXPLORER_URL || '';
 
-export const mintNFT = async (ipfsURI: string, signer: ethers.Signer) => {
+export const placeOrder = async (
+  ipfsURI: string,
+  signer: ethers.Signer,
+  orderPrice: string
+): Promise<{ txHash: string; tokenId: string }> => {
   try {
-    const contract = new ethers.Contract(CONTRACT_ADDRESS, deliveryABI.abi, signer);
-    
-    // Call mintOrder with just the IPFS URI
-    const tx = await contract.mintOrder(ipfsURI);
-    const receipt = await tx.wait();
-    
-    // Find the OrderMinted event in the receipt
-    const orderMintedEvent = receipt.logs?.find(
-      (log: ethers.Log) => {
-        try {
-          const parsedLog = contract.interface.parseLog(log);
-          return parsedLog?.name === 'OrderMinted';
-        } catch {
-          return false;
-        }
-      }
+    if (!ethers.isAddress(CONTRACT_ADDRESS)) {
+      throw new Error('Invalid contract address');
+    }
+
+    if (!signer.provider) {
+      throw new Error('No provider available');
+    }
+
+    const contract = new ethers.Contract(
+      CONTRACT_ADDRESS,
+      Cartified1155ABI.abi,
+      signer
     );
-    
-    if (!orderMintedEvent) {
-      throw new Error('OrderMinted event not found in transaction receipt');
+
+    // Send order with dynamic price (in wei)
+    const tx = await contract.placeOrder(ipfsURI, {
+      value: ethers.parseEther(orderPrice),
+    });
+
+    const receipt = await tx.wait();
+
+    const orderPlacedEvent = receipt.logs?.find((log: ethers.Log) => {
+      try {
+        const parsedLog = contract.interface.parseLog(log);
+        return parsedLog?.name === 'OrderPlaced';
+      } catch {
+        return false;
+      }
+    });
+
+    if (!orderPlacedEvent) {
+      throw new Error('OrderPlaced event not found');
     }
-    
-    // Parse the event data
-    const parsedLog = contract.interface.parseLog(orderMintedEvent);
-    if (!parsedLog) {
-      throw new Error('Failed to parse OrderMinted event');
+
+    const parsed = contract.interface.parseLog(orderPlacedEvent);
+    if (!parsed) {
+      throw new Error('Failed to parse OrderPlaced event');
     }
-    
-    const tokenId = parsedLog.args.tokenId.toString();
-    
-    toast.success('NFT minted successfully!');
-    
-    // Return both the transaction hash and the QR code data
+
+    const tokenId = parsed.args.tokenId.toString();
+
+    toast.success('Order placed successfully!');
     return {
       txHash: tx.hash,
-      qrData: `${BLOCK_EXPLORER_URL}${tx.hash}`, // This will be used to generate the QR code
-      tokenId // Get the minted token ID from the OrderMinted event
+      tokenId,
     };
-  } catch (error) {
-    console.error('Error minting NFT:', error);
-    toast.error(error instanceof Error ? error.message : 'Failed to mint NFT');
-    throw error;
+  } catch (err: unknown) {
+    console.error('Order placement failed:', err);
+    const errorMessage = err instanceof Error ? err.message : 'Failed to place order';
+    toast.error(errorMessage);
+    throw err;
   }
-}; 
+};

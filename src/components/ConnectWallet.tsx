@@ -23,7 +23,7 @@ const ConnectWallet: React.FC<ConnectWalletProps> = ({ className = '', onConnect
   return (
     <button
       onClick={handleClick}
-      className={`  bg-gradient-to-r from-blue-600 via-indigo-500 to-purple-500
+      className={`bg-gradient-to-r from-blue-600 via-indigo-500 to-purple-500
       text-white
       font-bold
       px-8 py-3

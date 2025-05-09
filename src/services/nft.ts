@@ -1,28 +1,44 @@
 import { ethers } from 'ethers';
-import PurchaseNFTAbi from '../contracts/PurchaseNFT.json';
+import ABI from '../contracts/delivery.json';
 
-const CONTRACT_ADDRESS = import.meta.env.VITE_NFT_CONTRACT_ADDRESS;
+const CONTRACT_ADDRESS = import.meta.env.VITE_CONTRACT_ADDRESS;
 
-export const mintPurchaseNFT = async (
-  account: string,
-  tokenId: number,
-  tokenUri: string
-) => {
+export const confirmDelivery = async (tokenId: number) => {
   try {
     const provider = new ethers.BrowserProvider(window.ethereum);
     const signer = await provider.getSigner();
     const contract = new ethers.Contract(
       CONTRACT_ADDRESS,
-      PurchaseNFTAbi,
+      ABI,
       signer
     );
 
-    const tx = await contract.mint(account, tokenId, tokenUri);
+    const tx = await contract.confirmDelivery(tokenId);
     await tx.wait();
 
-    return tokenId;
+    return true;
   } catch (error) {
-    console.error('Error minting NFT:', error);
+    console.error('Error confirming delivery:', error);
+    throw error;
+  }
+};
+
+export const burnOrder = async (tokenId: number) => {
+  try {
+    const provider = new ethers.BrowserProvider(window.ethereum);
+    const signer = await provider.getSigner();
+    const contract = new ethers.Contract(
+      CONTRACT_ADDRESS,
+      ABI,
+      signer
+    );
+
+    const tx = await contract.burnOrder(tokenId);
+    await tx.wait();
+
+    return true;
+  } catch (error) {
+    console.error('Error burning order:', error);
     throw error;
   }
 };

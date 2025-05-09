@@ -1,7 +1,7 @@
-// contexts/WalletContext.tsx
 'use client'
-import { createContext, useContext, useState, useEffect } from 'react'
+import { createContext, useState, useEffect } from 'react'
 import { ethers } from 'ethers'
+import { toast } from 'react-hot-toast';
 
 type EthereumEvent = 'accountsChanged' | 'chainChanged';
 type EthereumCallback = ((accounts: string[]) => void) | ((chainId: string) => void);
@@ -39,7 +39,7 @@ interface WalletContextType {
   disconnect: () => void
   switchNetwork: (chainId: number) => Promise<boolean>
   getWalletInfo: () => WalletInfo
-  provider?: ethers.providers.Web3Provider
+  provider?: ethers.BrowserProvider
 }
 
 const WalletContext = createContext<WalletContextType | undefined>(undefined)
@@ -49,30 +49,43 @@ export const WalletProvider = ({ children }: { children: React.ReactNode }) => {
   const [account, setAccount] = useState<string>('')
   const [chainId, setChainId] = useState<number | null>(null)
   const [balance, setBalance] = useState<string>('0')
-  const [provider, setProvider] = useState<ethers.providers.Web3Provider>()
+  const [provider, setProvider] = useState<ethers.BrowserProvider>()
   const [ensName, setEnsName] = useState<string | null>(null)
 
   // Check for existing connection on mount
   useEffect(() => {
     const checkConnection = async () => {
       if (window.ethereum?.selectedAddress) {
+        console.log('Found existing wallet connection, connecting...');
         await connect()
       }
     }
     checkConnection()
   }, [])
 
+  // Debug effect to track provider state
+  useEffect(() => {
+    console.log('Provider state changed:', {
+      hasProvider: !!provider,
+      status,
+      account,
+      chainId
+    });
+  }, [provider, status, account, chainId]);
+
   const connect = async () => {
     if (!window.ethereum) {
-      alert('Please install MetaMask!')
+      toast.error('Please install MetaMask!')
       return
     }
 
     try {
+      console.log('Starting wallet connection...');
       setStatus('connecting')
-      const web3Provider = new ethers.providers.Web3Provider(window.ethereum)
+      const web3Provider = new ethers.BrowserProvider(window.ethereum)
       
       // Request accounts first
+      console.log('Requesting accounts...');
       const accounts = await web3Provider.send('eth_requestAccounts', [])
       
       if (!accounts || accounts.length === 0) {
@@ -80,39 +93,61 @@ export const WalletProvider = ({ children }: { children: React.ReactNode }) => {
       }
       
       // Set provider after accounts are approved
+      console.log('Setting provider...');
       setProvider(web3Provider)
       
       const network = await web3Provider.getNetwork()
+      console.log('Connected to network:', network);
+      
+      // Check if we're on the correct network
+      const expectedChainId = Number(import.meta.env.VITE_CHAIN_ID || '137'); // Default to Polygon
+      if (Number(network.chainId) !== expectedChainId) {
+        console.log(`Switching to chain ID ${expectedChainId}...`);
+        await switchNetwork(expectedChainId);
+        // Recreate provider after network switch
+        const newProvider = new ethers.BrowserProvider(window.ethereum);
+        setProvider(newProvider);
+      }
+
       const balance = await web3Provider.getBalance(accounts[0])
+      console.log('Account balance:', ethers.formatEther(balance));
       
       // Try to resolve ENS name
       let name = null
-      if (network.chainId === 1) { // Only try ENS on Ethereum mainnet
+      if (network.chainId === 1n) { // Only try ENS on Ethereum mainnet
         name = await web3Provider.lookupAddress(accounts[0])
       }
 
       setAccount(accounts[0])
-      setChainId(network.chainId)
-      setBalance(ethers.utils.formatEther(balance))
+      setChainId(Number(network.chainId))
+      setBalance(ethers.formatEther(balance))
       setEnsName(name)
       setStatus('connected')
 
       // Set up event listeners
+      console.log('Setting up event listeners...');
       window.ethereum.on('accountsChanged', handleAccountsChanged)
       window.ethereum.on('chainChanged', handleChainChanged)
     } catch (error) {
-      console.error('Error connecting wallet:', error)
+      console.error('Error in connect:', error);
       setStatus('disconnected')
       setProvider(undefined)
-      throw error // Re-throw the error to be handled by the caller
+      toast.error(
+        error instanceof Error
+        ? error.message
+        : 'Wallet connection was interrupted or failed.'
+      )
+      throw error
     }
   }
 
   const disconnect = () => {
+    console.log('Disconnecting wallet...');
     setAccount('')
     setChainId(null)
     setBalance('0')
     setEnsName(null)
+    setProvider(undefined)
     setStatus('disconnected')
     
     if (window.ethereum) {
@@ -121,37 +156,46 @@ export const WalletProvider = ({ children }: { children: React.ReactNode }) => {
     }
   }
 
-  const handleAccountsChanged = (accounts: string[]) => {
+  const handleAccountsChanged = async (accounts: string[]) => {
+    console.log('Accounts changed:', accounts);
     if (accounts.length === 0) {
       disconnect()
     } else {
       setAccount(accounts[0])
       // Refresh balance when account changes
       if (provider) {
-        provider.getBalance(accounts[0]).then(bal => {
-          setBalance(ethers.utils.formatEther(bal))
-        })
+        const balance = await provider.getBalance(accounts[0])
+        setBalance(ethers.formatEther(balance))
       }
     }
   }
 
-  const handleChainChanged = (chainId: string) => {
+  const handleChainChanged = async (chainId: string) => {
+    console.log('Chain changed:', chainId);
     const newChainId = parseInt(chainId, 16)
     setChainId(newChainId)
     // Reset ENS name when chain changes
     setEnsName(null)
+    
+    // Recreate provider on chain change
+    if (window.ethereum) {
+      const newProvider = new ethers.BrowserProvider(window.ethereum)
+      setProvider(newProvider)
+    }
   }
 
   const switchNetwork = async (newChainId: number) => {
     if (!window.ethereum) return false
     
     try {
+      console.log(`Switching to network ${newChainId}...`);
       await window.ethereum.request({
         method: 'wallet_switchEthereumChain',
         params: [{ chainId: `0x${newChainId.toString(16)}` }]
       })
       return true
     } catch (error: unknown) {
+      console.error('Error switching network:', error);
       // This error code indicates the chain hasn't been added to MetaMask
       if (error && typeof error === 'object' && 'code' in error && error.code === 4902) {
         try {
@@ -162,12 +206,13 @@ export const WalletProvider = ({ children }: { children: React.ReactNode }) => {
           return false
         }
       }
-      console.error('Error switching network:', error)
       return false
     }
   }
 
   const addNetwork = async (chainId: number) => {
+    if (!window.ethereum) return;
+    
     // You would add your network configurations here
     // Example for Polygon:
     if (chainId === 137) {
@@ -228,14 +273,6 @@ export const WalletProvider = ({ children }: { children: React.ReactNode }) => {
       {children}
     </WalletContext.Provider>
   )
-}
-
-export const useWallet = () => {
-  const context = useContext(WalletContext)
-  if (context === undefined) {
-    throw new Error('useWallet must be used within a WalletProvider')
-  }
-  return context
 }
 
 export { WalletContext }

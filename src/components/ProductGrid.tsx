@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ChevronLeft, ChevronRight, Filter } from 'lucide-react';
+import {  Filter } from 'lucide-react';
 import { motion } from 'framer-motion';
 import ProductCard from './ProductCard';
 import { mockProducts } from '../data/mockProducts';
@@ -15,11 +15,11 @@ const ProductGrid: React.FC = () => {
     : mockProducts.filter(product => product.category === selectedCategory);
 
   return (
-    <div className="py-8">
+    <div className="md:py-8 py-14">
       {/* Categories Tabs */}
       <div className="flex items-center justify-between mb-8">
         <div className="relative flex-1 overflow-hidden">
-          <div className="flex space-x-2 md:space-x-4 overflow-x-auto pb-2 scrollbar-hide">
+          <div className="flex space-x-2 md:space-x-4 overflow-x-auto pb-2">
             {categories.map((category) => (
               <button
                 key={category}
@@ -38,7 +38,7 @@ const ProductGrid: React.FC = () => {
 
         <button
           onClick={() => setIsFilterOpen(!isFilterOpen)}
-          className="ml-4 p-2 rounded-full bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
+          className="hidden md:block ml-4 p-2 rounded-full bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors"
         >
           <Filter className="h-5 w-5" />
         </button>

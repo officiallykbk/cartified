@@ -16,7 +16,7 @@ const client = create({
 export const uploadToIPFS = async (data: any) => {
   try {
     const result = await client.add(JSON.stringify(data));
-    return `https://ipfs.io/ipfs/${result.path}`;
+    return `ipfs://${result.path}`; // Changed to use ipfs:// protocol
   } catch (error) {
     console.error('Error uploading to IPFS:', error);
     throw error;
@@ -25,20 +25,16 @@ export const uploadToIPFS = async (data: any) => {
 
 export const generatePurchaseNFTMetadata = async (purchase: any) => {
   const metadata = {
-    name: `Purchase #${purchase.id}`,
-    description: 'Decentralized Shopping Purchase Verification',
-    image: 'https://your-nft-image-url.com', // Replace with your NFT image
+    name: `Order #${purchase.id}`,
+    description: 'Cartified Order Verification',
+    image: '../../src/images/logo-no-bg.png', // Replace with your NFT image
     attributes: {
-      purchaseId: purchase.id,
+      orderId: purchase.id,
       buyer: purchase.buyerAddress,
       timestamp: purchase.timestamp,
-      items: purchase.items.map((item: any) => ({
-        name: item.name,
-        quantity: item.quantity,
-        price: item.price,
-      })),
-      total: purchase.total,
-      paymentMethod: purchase.paymentMethod,
+      amount: purchase.amount,
+      delivered: purchase.delivered,
+      burned: purchase.burned
     },
   };
 

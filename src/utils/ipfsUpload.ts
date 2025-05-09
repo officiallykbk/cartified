@@ -1,34 +1,47 @@
 import { toast } from 'react-hot-toast';
 import axios from 'axios';
-import { mintNFT } from './mintNFT';
+import { placeOrder } from './mintNFT';
 import { ethers } from 'ethers';
 
-const PINATA_API_KEY = "e4e6d2a74d42ffae6254";
-const PINATA_SECRET = "75126eccd111cb7e6a3af69f892acae1c14a10936c6371ca7aecc20e9795973d";
+const PINATA_JWT_TOKEN = import.meta.env.VITE_PINATA_JWT_TOKEN || '';
 const PINATA_ENDPOINT = 'https://api.pinata.cloud/pinning/pinJSONToIPFS';
 
-export const uploadJSONToIPFS = async (data: object, signer: ethers.Signer) => {
+interface IPFSResponse {
+  IpfsHash: string;
+  PinSize: number;
+  Timestamp: string;
+}
+
+export const uploadJSONToIPFS = async (
+  data: object,
+  signer: ethers.Signer,
+  orderPrice: string
+): Promise<{ ipfsURI: string; txHash: string; tokenId: string }> => {
   try {
-    const res = await axios.post(
-      PINATA_ENDPOINT,
-      data,
-      {
-        headers: {
-          pinata_api_key: PINATA_API_KEY!,
-          pinata_secret_api_key: PINATA_SECRET!,
-        },
-      }
-    );
+    if (!PINATA_JWT_TOKEN) {
+      throw new Error('Pinata JWT token not configured');
+    }
+
+    const res = await axios.post<IPFSResponse>(PINATA_ENDPOINT, data, {
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${PINATA_JWT_TOKEN}`
+      },
+    });
 
     const ipfsHash = res.data.IpfsHash;
-    const ipfsURI = `https://gateway.pinata.cloud/ipfs/${ipfsHash}`;
-    
-    // Trigger minting after successful upload
-    const { txHash, qrData, tokenId } = await mintNFT(ipfsURI, signer);
-    return { ipfsURI, txHash, qrData, tokenId };
-  } catch (error) {
-    toast.error('Failed to upload to IPFS');
-    throw error;
+    const ipfsURI = `ipfs://${ipfsHash}`;
+
+    const { txHash, tokenId } = await placeOrder(ipfsURI, signer, orderPrice);
+    return { ipfsURI, txHash, tokenId };
+  } catch (err: unknown) {
+    console.error('IPFS upload failed:', err);
+    if (axios.isAxiosError(err)) {
+      if (err.response?.status === 401) {
+        throw new Error('Pinata authentication failed - check your JWT token');
+      }
+      throw new Error(`IPFS upload failed: ${err.response?.data?.error || err.message}`);
+    }
+    throw new Error('Failed to upload to IPFS');
   }
 };
-

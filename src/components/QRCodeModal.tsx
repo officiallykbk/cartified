@@ -1,4 +1,4 @@
-import React from 'react';
+
 import { QRCodeSVG } from 'qrcode.react';
 import { motion, AnimatePresence } from 'framer-motion';
 
