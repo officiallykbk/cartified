@@ -91,6 +91,16 @@ const Cart: React.FC<CartProps> = ({ onClose }) => {
         // Clear cart after successful order placement
         clearCart();
         
+        // Reconnect wallet to refresh state
+        if (window.ethereum) {
+          try {
+            await window.ethereum.request({ method: 'eth_requestAccounts' });
+            await connect();
+          } catch (error) {
+            console.error('Error reconnecting wallet after order:', error);
+          }
+        }
+        
         // Move to success step
         setCheckoutStep('success');
         toast.success('Order placed successfully!');
