@@ -4,6 +4,7 @@ import { useWallet } from '../hooks/useWallet';
 import { truncateAddress } from '../utils/address';
 import Logo from './Logo';
 import ConnectWallet from './ConnectWallet';
+import LoyaltyProfile from './LoyaltyProfile'; // Import LoyaltyProfile
 
 interface HeaderProps {
   onCartClick: () => void;
@@ -57,6 +58,9 @@ const Header: React.FC<HeaderProps> = ({ onCartClick, onWalletClick }) => {
             </button>
 
             <ConnectWallet onConnect={onWalletClick} className="hidden md:flex" />
+            <div className="hidden md:flex ml-2"> {/* Added wrapper for styling if needed */}
+              <LoyaltyProfile />
+            </div>
 
             <button
               onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
@@ -88,8 +92,9 @@ const Header: React.FC<HeaderProps> = ({ onCartClick, onWalletClick }) => {
       {/* Mobile Menu */}
       {isMobileMenuOpen && (
         <div className="md:hidden bg-white dark:bg-gray-900 shadow-md border-t dark:border-gray-800">
-          <div className="px-4 py-3">
-            <ConnectWallet onConnect={onWalletClick} className="w-full justify-center" />
+          <div className="px-4 py-3 flex flex-col items-center"> {/* Allow stacking in mobile */}
+            <ConnectWallet onConnect={onWalletClick} className="w-full justify-center mb-2" />
+            <LoyaltyProfile /> {/* Added LoyaltyProfile to mobile menu */}
           </div>
         </div>
       )}

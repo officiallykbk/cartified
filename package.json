@@ -13,6 +13,7 @@
     "@openzeppelin/contracts": "^5.0.1",
     "@web3modal/ethereum": "^2.7.1",
     "@web3modal/react": "^2.7.1",
+    "axios": "^1.9.0",
     "ethers": "^6.7.1",
     "framer-motion": "^10.16.4",
     "ipfs-http-client": "^60.0.1",
